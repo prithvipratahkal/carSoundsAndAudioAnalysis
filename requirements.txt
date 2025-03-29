@@ -2,9 +2,15 @@ fastapi
 uvicorn
 redis
 python-multipart
+
 numpy
 scikit-learn
 joblib
 soundfile
-PyAudioAnalysis
+audioread
 pydub
+PyAudioAnalysis
+requests
+tqdm
+torch
+torchaudio
