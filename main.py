@@ -1,16 +1,27 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import shutil, os, uuid, json, redis
-from pyAudioAnalysis import audioTrainTest as aT
+import uuid, os, json, redis
 
+# Initialize app
 app = FastAPI()
-r = redis.Redis()
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # For dev only: allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Redis setup
+r = redis.Redis(host="localhost", port=6379, db=0)
+
+# Make sure job folder exists
 os.makedirs("jobs", exist_ok=True)
 
-MODEL_DIR = "models"
-MODEL_NAME = "motorsoundsmodel"
-MODEL_TYPE = "gradientboosting"
-
+# POST /queue — Upload file and push to Redis
 @app.post("/queue")
 async def queue_audio(file: UploadFile = File(...)):
     job_id = str(uuid.uuid4())
@@ -28,24 +39,11 @@ async def queue_audio(file: UploadFile = File(...)):
     r.lpush("audio_jobs", json.dumps(job_data))
     return {"message": "Job queued", "job_id": job_id}
 
+
+# GET /result/{job_id} — Check for prediction result
 @app.get("/result/{job_id}")
 def get_result(job_id: str):
     result = r.get(f"result:{job_id}")
-    if result:
-        return json.loads(result)
-    return {"status": "pending"}
-
-@app.post("/predict")
-async def predict_sound(file: UploadFile = File(...)):
-    temp_path = f"jobs/temp_{file.filename}"
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    c, p, p_nam = aT.file_classification(temp_path, os.path.join(MODEL_DIR, MODEL_NAME), MODEL_TYPE)
-    os.remove(temp_path)
-
-    predicted_class_index = int(c)
-    return {
-        "predicted_class": p_nam[predicted_class_index],
-        "confidence": round(p[predicted_class_index], 3)
-    }
+    if result is None:
+        return {"status": "pending"}
+    return json.loads(result)

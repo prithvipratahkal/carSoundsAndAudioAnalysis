@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+redis
+python-multipart
+numpy
+scikit-learn
+joblib
+soundfile
+PyAudioAnalysis
+pydub
