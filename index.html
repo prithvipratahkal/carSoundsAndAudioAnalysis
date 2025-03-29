@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bulk Audio Upload with Queue</title>
+  <style>
+    body { font-family: Arial; padding: 2rem; background: #f5f5f5; }
+    input[type="file"] { margin-bottom: 1rem; }
+    .file-list { margin-top: 1rem; }
+    .file-item { margin-bottom: 0.5rem; background: #fff; padding: 0.5rem; border-radius: 5px; }
+    .result { margin-top: 1rem; color: green; }
+  </style>
+</head>
+<body>
+  <h2>Bulk Upload Audio Files (.wav)</h2>
+  <input type="file" id="fileInput" accept=".wav" multiple />
+  <button onclick="uploadFiles()">Upload Files</button>
+
+  <div class="file-list" id="fileList"></div>
+  <div class="result" id="result"></div>
+
+  <script>
+    async function uploadFiles() {
+      const input = document.getElementById('fileInput');
+      const files = input.files;
+      const listDiv = document.getElementById('fileList');
+      listDiv.innerHTML = '';
+
+      if (!files.length) {
+        alert("Please select one or more .wav files");
+        return;
+      }
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const fileItem = document.createElement("div");
+        fileItem.className = "file-item";
+        fileItem.textContent = `Queued: ${file.name}`;
+        listDiv.appendChild(fileItem);
+
+        try {
+          const res = await fetch("http://127.0.0.1:8000/queue", {
+            method: "POST",
+            body: formData
+          });
+
+          const data = await res.json();
+          const jobId = data.job_id;
+
+          fileItem.setAttribute("data-job-id", jobId);
+          fileItem.setAttribute("data-filename", file.name);
+
+          // Start polling result
+          pollResult(jobId, fileItem);
+        } catch (err) {
+          fileItem.textContent = `${file.name} -> Queueing Failed`;
+        }
+      }
+    }
+
+    async function pollResult(jobId, element) {
+      const interval = setInterval(async () => {
+        const res = await fetch(`http://127.0.0.1:8000/result/${jobId}`);
+        const data = await res.json();
+
+        if (data.status !== 'pending') {
+          element.textContent = `${element.getAttribute("data-filename")}: ${data.predicted_class} (Confidence: ${data.confidence})`;
+          clearInterval(interval);
+        }
+      }, 2000); // poll every 2 seconds
+    }
+  </script>
+</body>
+</html>
